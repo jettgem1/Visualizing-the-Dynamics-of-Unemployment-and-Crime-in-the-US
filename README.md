@@ -21,18 +21,18 @@ Data manipulation was performed using a combination of HTML to CSV converters, P
 To run this project locally, follow these steps:
 
 1. **Clone the Repository:**
-   ```sh
-   git clone https://your-repository-link.git
+   ```
+   sh git clone https://github.com/jettgem1/Visualizing-the-Dynamics-of-Unemployment-and-Crime-in-the-US
    ```
 2. **Install Dependencies:**
    Ensure you have D3.js and any other dependencies listed in the `package.json` file installed. If you're using npm, you can run:
-   ```sh
-   npm install
+   ```
+   sh npm install
    ```
 3. **Launch the Project:**
    Depending on your setup, you might serve the project using a simple HTTP server. For example, you can use Python's built-in HTTP server:
-   ```sh
-   python -m http.server 8000
+   ```
+   sh python -m http.server 8000
    ```
    Then, access the project at `http://localhost:8000` in your web browser.
 
