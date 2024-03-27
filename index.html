@@ -1,0 +1,673 @@
+<head>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="data/topojson/topojson.min.js"></script>
+  <style>
+    .state-borders {
+      fill: none;
+      stroke: #fff;
+      stroke-width: 0.5px;
+    }
+
+    .x-gridlines-small line {
+      stroke: #dcdcdc;
+    }
+
+    .x-gridlines-big line {
+      stroke: #a9a9a9;
+    }
+
+    .y-gridlines line {
+      stroke: #a9a9a9;
+    }
+
+    .gridlines .domain {
+      stroke: none;
+    }
+
+    .axisLeft line {
+      stroke: #0bb4ff;
+    }
+
+    .axisLeft path {
+      stroke: #0bb4ff;
+    }
+
+    .axisLeft text {
+      fill: #0bb4ff;
+    }
+
+    .axisRight line {
+      stroke: #e60049;
+    }
+
+    .axisRight path {
+      stroke: #e60049;
+    }
+
+    .axisRight text {
+      fill: #e60049;
+    }
+
+    .title {
+      font-family: Helvetica;
+      text-align: center;
+    }
+
+    p {
+      font-family: Helvetica;
+      padding: 20px 80px 20px 80px;
+      text-align: center;
+    }
+
+    .label {
+      font: 12px Helvetica;
+    }
+
+    .key {
+      font: 15px Helvetica;
+    }
+
+    .lineGraph {
+      margin: 5px 5px 5px 5px;
+      border: 1px solid gray;
+    }
+
+    body {
+      width: 1400px;
+    }
+
+    h3 {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <h1 class="text-center title" style="padding: 40px 80px 20px 80px; text-decoration: underline;">
+    United States Rates of Unemployment vs. Total Crime
+  </h1>
+  <h2 class="title">US Unemployment and Crime 1981-2018</h2>
+  <p>How have unemployment rates in the US changed over the past 40 years?
+    In which states is unemployment highest, and where has it improved the
+    most over time?
+  </p>
+  <!-- Maps -->
+  <div id=" map">
+    <div style="text-align:center;">
+      <div style="border: 1px solid gray;">
+        <h2 class="title" style="display: inline-block; width: 45%">US Unemployment Average 1981-1999</h2>
+        <h2 class="title" style="display: inline-block; width: 45%">US Unemployment Average 2000-2018</h2>
+        <svg id="map" height="360" width="576" style="margin-bottom:30px"></svg>
+        <div style="display: inline-block;">
+          <div class="key">Unemployment(%)</div>
+          <div id="key"></div>
+        </div>
+        <svg id="map2" height="360" width="576" style="margin-bottom:30px"></svg>
+      </div>
+    </div>
+    <script>
+      var svg = d3.select("svg#map");
+
+      // funciton to scale map down
+      function scale(f) {
+        return d3.geoTransform({
+          point: function (x, y) {
+            this.stream.point(x * f, y * f);
+          }
+        });
+      }
+
+      var path = d3.geoPath().projection(scale(0.6));
+
+      var color = d3.scaleLinear()
+        .domain([0, 10])
+        .range(["white", "MidnightBlue"]);
+
+      const stateData1 = {};
+      const stateData2 = {};
+
+      const dict1 = {};
+      const dict2 = {};
+
+      d3.csv("data/us-unemployment-2.csv").then((data) => {
+        data.forEach((row) => {
+          const year = parseInt(row["Year"]);
+          const state = row["State/Area"];
+          const rate = parseFloat(row["Rate"]);
+
+          let targetData = year < 2000 ? stateData1 : stateData2;
+
+          if (targetData[state]) {
+            targetData[state].sum += rate;
+            targetData[state].count += 1;
+          } else {
+            targetData[state] = { sum: rate, count: 1 };
+          }
+        });
+
+        function populateDict(targetDict, stateData) {
+          for (const [state, { sum, count }] of Object.entries(stateData)) {
+            const average = sum / count;
+            targetDict[state] = average;
+          }
+        }
+
+        populateDict(dict1, stateData1);
+        populateDict(dict2, stateData2);
+
+        console.log("Dict1 (1981-1999):", dict1);
+        console.log("Dict2 (2000-2018):", dict2);
+        var svg2 = d3.select("svg#map2");
+
+        d3.json("data/states.json").then(function (us) {
+          svg
+            .append("g")
+            .attr("class", "states")
+            .selectAll("path")
+            .data(topojson.feature(us, us.objects.states).features)
+            .enter()
+            .append("path")
+            .attr("d", path)
+            .attr("fill", function (d) {
+              var rate = dict1[d.properties.name];
+              return color(rate);
+            });
+          svg2
+            .append("g")
+            .attr("class", "states")
+            .selectAll("path")
+            .data(topojson.feature(us, us.objects.states).features)
+            .enter()
+            .append("path")
+            .attr("d", path)
+            .attr("fill", function (d) {
+              var rate = dict2[d.properties.name];
+              return color(rate);
+            });
+
+          svg
+            .append("path")
+            .attr("class", "state-borders")
+            .attr(
+              "d",
+              path(
+                topojson.mesh(us, us.objects.states, function (a, b) {
+                  return a !== b;
+                })
+              )
+            );
+          svg2
+            .append("path")
+            .attr("class", "state-borders")
+            .attr("d", path(topojson.mesh(us, us.objects.states, function (a, b) { return a !== b; })));
+
+
+        })
+      });
+
+      var svg2 = d3.select("#key")
+        .append("svg")
+        .attr("width", 100)
+        .attr("height", 400)
+
+      for (let i = 0; i < 11; i++) {
+        svg2.append('rect')
+          .attr('x', 50)
+          .attr('y', 20 + (i * 20))
+          .attr('width', 20)
+          .attr('height', 20)
+          .attr('stroke', 'black')
+          .attr('stroke-with', 1)
+          .attr('fill', function (d) {
+            return color(i);
+          });
+
+        svg2.append('text')
+          .attr('class', 'key')
+          .attr('x', 30)
+          .attr('y', 35 + (i * 20))
+          .text(i);
+
+      }
+
+    </script>
+  </div>
+
+  <p>
+    <b>Figure 1. US Unemployment Averages from 1981-1999 and 2000-2018.</b>
+    <br>
+    These maps were generated with unemployment data by collected by
+    state, which was then transformed to calculate ~20 year averages, and
+    state geometric data. A sequential color scale shows unemployment
+    ranging from 0-10%. This visualization shows an overall decrease in
+    average unemployment rate between the to ranges in most states.
+  </p>
+
+  <!-- Line Graphs -->
+  <div id="line1" style="text-align:center;">
+    <h2 class="title">US Unemployment and Crime 1960-2019</h2>
+    <p>
+      What is the relationship between unemployment rates and crime rates? What is
+      the overall trend for the United States, and how does it differ by state?
+      Are there any consistent patterns between them?
+    </p>
+    <h3 class="title">US Total</h3>
+
+    <svg class='lineGraph' id="line1" height="300" width="1370"></svg>
+    <script>
+      const colors = ["#0bb4ff", "#e60049"];
+
+      const svg_line1 = d3.select("svg#line1");
+      const width = svg_line1.attr("width");
+      const height = svg_line1.attr("height");
+      const margin = { top: 40, right: 80, bottom: 60, left: 80 };
+      const chartWidth = width - margin.left - margin.right;
+      const chartHeight = height - margin.top - margin.bottom;
+
+      //title
+      svg_line1
+        .append("text")
+        .attr("x", width / 2)
+        .attr("y", margin.top / 2 + 5)
+        .attr("text-anchor", "middle")
+        .style("font", "16px Helvetica")
+        .text("United States");
+
+      let annotations = svg_line1.append("g").attr("id", "annotations");
+      let chartArea = svg_line1
+        .append("g")
+        .attr("id", "points")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const drawLineGraphs = async function () {
+        //us crime total
+        const us_crime = await d3.csv("data/us-crime-rate.csv", d3.autoType);
+        // console.log(us_crime);
+
+        //us unemploy total
+        const us_unemploy = await d3.csv(
+          "data/us-unemployment-rate.csv",
+          d3.autoType
+        );
+        // console.log(us_unemploy);
+
+        //clean up data
+        us_crime.forEach((d, i) => {
+          d["Larceny-Theft"] = Number(d["Larceny-Theft"].replace(/,/g, ""));
+          d["Population"] = Number(d["Population"].replace(/,/g, ""));
+          d["Property"] = Number(d["Property"].replace(/,/g, ""));
+          d["Total"] = Number(d["Total"].replace(/,/g, ""));
+        });
+
+        //rate (crime and unemployment)
+        // const us_crime_list = us_crime.map(d => d.Total);
+        // const us_unemploy_list = us_unemploy.map(d => d.Total);
+
+        //find extent of both rates combines
+        // const rateExtent = d3.extent(us_crime_list.concat(us_unemploy_list));
+
+        //left - unemploy
+        const unemployRateScale = d3
+          .scaleLinear()
+          .domain([0, 18000]) //rateExtent)
+          .range([chartHeight, 0]);
+        let leftAxis = d3.axisLeft(unemployRateScale);
+        let leftGridlines = d3
+          .axisLeft(unemployRateScale)
+          .tickSize(-chartWidth - 20)
+          .tickFormat("");
+
+        annotations
+          .append("g")
+          .attr("class", "y gridlines y-gridlines")
+          .attr("transform", `translate(${margin.left - 10},${margin.top})`)
+          .call(leftGridlines);
+        annotations
+          .append("g")
+          .attr("class", "y axis axisLeft")
+          .attr("transform", `translate(${margin.left - 10},${margin.top})`)
+          .call(leftAxis);
+        annotations
+          .append("text")
+          .attr("class", "y label")
+          .attr("text-anchor", "middle")
+          .attr("x", -height / 2)
+          .attr("y", 20)
+          .attr("transform", "rotate(-90)")
+          .attr("fill", colors[0])
+          .text("Unemployment Rate (per 100,000)");
+
+        //right - crime
+        const crimeRateScale = d3
+          .scaleLinear()
+          .domain([0, 9000]) //rateExtent)
+          .range([chartHeight, 0]);
+        let rightAxis = d3.axisRight(crimeRateScale);
+
+        annotations
+          .append("g")
+          .attr("class", "y axis axisRight")
+          .attr(
+            "transform",
+            `translate(${margin.left + chartWidth + 10},${margin.top})`
+          )
+          .call(rightAxis);
+        annotations
+          .append("text")
+          .attr("class", "y label")
+          .attr("text-anchor", "middle")
+          .attr("x", height / 2)
+          .attr("y", -width + 20)
+          .attr("transform", "rotate(-270)")
+          .attr("fill", colors[1])
+          .text("Crime Rate (per 100,000)");
+
+        //year
+        const yearExtent = d3.extent(us_crime, (d) => d["Year"]);
+        const yearScale = d3
+          .scaleLinear()
+          .domain(yearExtent)
+          .range([0, chartWidth]);
+        let bottomAxis = d3.axisBottom(yearScale).tickFormat(d3.format("d")); //remove comma in year
+
+        let bottomGridlines1 = d3
+          .axisBottom(yearScale)
+          .tickSize(-chartHeight - 10)
+          .ticks(60)
+          .tickFormat("");
+        let bottomGridlines2 = d3
+          .axisBottom(yearScale)
+          .tickSize(-chartHeight - 10)
+          .tickFormat("");
+
+        annotations
+          .append("g")
+          .attr("class", "x gridlines x-gridlines-small")
+          .attr(
+            "transform",
+            `translate(${margin.left},${chartHeight + margin.top + 10})`
+          )
+          .lower()
+          .call(bottomGridlines1);
+        annotations
+          .append("g")
+          .attr("class", "x gridlines x-gridlines-big")
+          .attr(
+            "transform",
+            `translate(${margin.left},${chartHeight + margin.top + 10})`
+          )
+          .call(bottomGridlines2);
+        annotations
+          .append("g")
+          .attr("class", "x axis")
+          .attr(
+            "transform",
+            `translate(${margin.left},${chartHeight + margin.top + 10})`
+          )
+          .call(bottomAxis);
+        annotations
+          .append("text")
+          .attr("class", "x label")
+          .attr("text-anchor", "middle")
+          .attr("x", width / 2)
+          .attr("y", height - 15)
+          .text("Year");
+
+        //crime line
+        var usCrimeLineGen = d3
+          .line()
+          .x((d) => yearScale(d["Year"]))
+          .y((d) => crimeRateScale(d["Total"]));
+        // .curve(d3.curveMonotoneX);
+
+        chartArea
+          .append("path")
+          .datum(us_crime)
+          .attr("class", "line")
+          .attr("fill", "none")
+          .attr("stroke", colors[1])
+          .attr("stroke-width", 2)
+          .attr("d", usCrimeLineGen);
+
+        //unemployment line
+        var usUnemployLineGen = d3
+          .line()
+          .x((d) => yearScale(d["Year"]))
+          .y((d) => unemployRateScale(d["Total"]));
+
+        chartArea
+          .append("path")
+          .datum(us_unemploy)
+          .attr("class", "line")
+          .attr("fill", "none")
+          .attr("stroke", colors[0])
+          .attr("stroke-width", 2)
+          .attr("d", usUnemployLineGen);
+      };
+
+      const drawLineGraphs2 = async function (state) {
+        const width2 = 450;
+        const chartWidth2 = width2 - margin.left - margin.right;
+
+        let newLineGraph = d3
+          .select("div#line1")
+          .append("svg")
+          .attr("class", "lineGraph")
+          .attr("width", width2)
+          .attr("height", height);
+
+        newLineGraph
+          .append("text")
+          .attr("x", width2 / 2)
+          .attr("y", margin.top / 2 + 5)
+          .attr("text-anchor", "middle")
+          .style("font", "16px Helvetica")
+          .text(state);
+
+        let line_annotations = newLineGraph
+          .append("g")
+          .attr("id", "annotations");
+        let line_chartArea = newLineGraph
+          .append("g")
+          .attr("id", "points")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        //us crime total
+        let us_crime = await d3.csv("data/state_crime.csv", d3.autoType);
+        us_crime = us_crime.filter((d) => {
+          return d["State"] == state;
+        });
+        // console.log(state, us_crime);
+
+        //us unemploy total
+        let us_unemploy = await d3.csv(
+          "data/us-unemployment-2.csv",
+          d3.autoType
+        );
+        // console.log(state, us_unemploy);
+        us_unemploy = us_unemploy.filter((d) => {
+          return d["State/Area"] == state;
+        });
+        // console.log(state, us_unemploy);
+
+        //left - unemploy
+        const unemployRateScale = d3
+          .scaleLinear()
+          .domain([0, 18000])
+          .range([chartHeight, 0]);
+        let leftAxis = d3.axisLeft(unemployRateScale);
+        let leftGridlines = d3
+          .axisLeft(unemployRateScale)
+          .tickSize(-chartWidth2 - 20)
+          .tickFormat("");
+
+        line_annotations
+          .append("g")
+          .attr("class", "y gridlines y-gridlines")
+          .attr("transform", `translate(${margin.left - 10},${margin.top})`)
+          .call(leftGridlines);
+        line_annotations
+          .append("g")
+          .attr("class", "y axis axisLeft")
+          .attr("transform", `translate(${margin.left - 10},${margin.top})`)
+          .call(leftAxis);
+        line_annotations
+          .append("text")
+          .attr("class", "y label")
+          .attr("text-anchor", "middle")
+          .attr("x", -height / 2)
+          .attr("y", 20)
+          .attr("transform", "rotate(-90)")
+          .attr("fill", colors[0])
+          .text("Unemployment Rate (per 100,000)");
+
+        //right - crime
+        const crimeRateScale = d3
+          .scaleLinear()
+          .domain([0, 9000]) //rateExtent)
+          .range([chartHeight, 0]);
+        let rightAxis = d3.axisRight(crimeRateScale);
+
+        line_annotations
+          .append("g")
+          .attr("class", "y axis axisRight")
+          .attr(
+            "transform",
+            `translate(${margin.left + chartWidth2 + 10},${margin.top})`
+          )
+          .call(rightAxis);
+        line_annotations
+          .append("text")
+          .attr("class", "y label")
+          .attr("text-anchor", "middle")
+          .attr("x", height / 2)
+          .attr("y", -width2 + 20)
+          .attr("transform", "rotate(-270)")
+          .attr("fill", colors[1])
+          .text("Crime Rate (per 100,000)");
+
+        //year
+        const yearExtent = d3.extent(us_crime, (d) => d["Year"]);
+        const yearScale = d3
+          .scaleLinear()
+          .domain(yearExtent)
+          .range([0, chartWidth2]);
+        let bottomAxis = d3.axisBottom(yearScale).tickFormat(d3.format("d")); //remove comma in year
+
+        let bottomGridlines1 = d3
+          .axisBottom(yearScale)
+          .tickSize(-chartHeight - 10)
+          .ticks(60)
+          .tickFormat("");
+        let bottomGridlines2 = d3
+          .axisBottom(yearScale)
+          .tickSize(-chartHeight - 10)
+          .tickFormat("");
+
+        line_annotations
+          .append("g")
+          .attr("class", "x gridlines x-gridlines-small")
+          .attr(
+            "transform",
+            `translate(${margin.left},${chartHeight + margin.top + 10})`
+          )
+          .lower()
+          .call(bottomGridlines1);
+        line_annotations
+          .append("g")
+          .attr("class", "x gridlines x-gridlines-big")
+          .attr(
+            "transform",
+            `translate(${margin.left},${chartHeight + margin.top + 10})`
+          )
+          .call(bottomGridlines2);
+        line_annotations
+          .append("g")
+          .attr("class", "x axis")
+          .attr(
+            "transform",
+            `translate(${margin.left},${chartHeight + margin.top + 10})`
+          )
+          .call(bottomAxis);
+        line_annotations
+          .append("text")
+          .attr("class", "x label")
+          .attr("text-anchor", "middle")
+          .attr("x", width2 / 2)
+          .attr("y", height - 15)
+          .text("Year");
+
+        //line functions
+        var lineGen_crime = d3
+          .line()
+          .x((d) => yearScale(d["Year"]))
+          .y((d) =>
+            crimeRateScale(
+              d["Data.Rates.Violent.All"] + d["Data.Rates.Property.All"]
+            )
+          );
+        // .curve(d3.curveMonotoneX);
+        var lineGen_unemploy = d3
+          .line()
+          .x((d) => yearScale(d["Year"]))
+          .y((d) => unemployRateScale(d["Rate"] * 1000));
+
+        //crime line
+        line_chartArea
+          .append("path")
+          .datum(us_crime)
+          .attr("class", "line")
+          .attr("fill", "none")
+          .attr("stroke", colors[1])
+          .attr("stroke-width", 2)
+          .attr("d", lineGen_crime);
+
+        //unemployment line
+        line_chartArea
+          .append("path")
+          .datum(us_unemploy)
+          .attr("class", "line")
+          .attr("fill", "none")
+          .attr("stroke", colors[0])
+          .attr("stroke-width", 2)
+          .attr("d", lineGen_unemploy);
+      };
+
+      drawLineGraphs();
+      d3.select("div#line1")
+        .append('h3')
+        .attr('class', 'title')
+        .text('Top 3 States with Lowest Unemployment Rates in 2019');
+      drawLineGraphs2("Vermont");
+      drawLineGraphs2("North Dakota");
+      drawLineGraphs2("Hawaii");
+      d3.select("div#line1")
+        .append('h3')
+        .attr('class', 'title')
+        .text('Top 3 States with Highest Unemployment Rates in 2019');
+      drawLineGraphs2("Alaska");
+      drawLineGraphs2("Mississippi");
+      drawLineGraphs2("West Virginia");
+    </script>
+  </div>
+  <p>
+    <b>Figure 2. Unemployment Rates and Crime Rates from 1960 to 2020. State
+      datasets contain unemployment data from 1980 onwards.</b>
+    <br>
+    These graphs show a weak, positive relationship between unemployment and
+    crime rates. Analysis of the overall United States shows that 5/6 major
+    unemployment spikes occur near-synchronously with increases and
+    decreases in crime rate. However, analysis at the state level reveals
+    greater variability. States with stable rates like Vermont, North Dakota
+    and Alaska show closely linked unemployment and crime, while states with
+    greater fluctuation like Mississippi and Hawaii show weaker
+    relationships.
+  </p>
+  </div>
+  <hr>
+  <p>jmg575 (Jett), ac2262 (Amanda), ajs557 (Andrew), lmc339 (Lauren)
+    <br>Cornell University
+    <br>CS3300: Data-Driven Web Applications
+    <br>Fall 2023
+  </p>
+</body>
